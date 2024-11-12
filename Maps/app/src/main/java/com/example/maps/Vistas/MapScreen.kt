@@ -73,10 +73,15 @@ fun MapScreen() {
             cameraPositionState = cameraPositionState
         ) {
             // Añadir marcador en Denver, Colorado
+// Añadir marcador en Arequipa Perú
             Marker(
                 state = rememberMarkerState(position = ArequipaLocation),
+                icon = BitmapDescriptorFactory.fromResource(R.drawable.captura_de_pantalla_2024_11_11_202125), // Icono azul
                 title = "Arequipa, Perú"
             )
+
+
+
         }
     }
 }
