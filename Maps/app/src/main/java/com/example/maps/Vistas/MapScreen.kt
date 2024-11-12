@@ -56,15 +56,28 @@ import android.Manifest
 import android.content.ContextWrapper
 import android.location.Location
 import androidx.activity.ComponentActivity
+import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.drawable.toBitmap
 import com.example.maps.R
+
 
 @Composable
 fun MapScreen() {
+    val context = LocalContext.current
     val ArequipaLocation = LatLng(-16.4040102, -71.559611) // Arequipa, Perú
     val cameraPositionState = rememberCameraPositionState {
-        position = com.google.android.gms.maps.model.CameraPosition.fromLatLngZoom(ArequipaLocation, 12f)
+        position = CameraPosition.fromLatLngZoom(ArequipaLocation, 12f)
     }
 
+    // Lista de ubicaciones adicionales
+    val locations = listOf(
+        LatLng(-16.433415, -71.5442652), // JLByR
+        LatLng(-16.4205151, -71.4945209), // Paucarpata
+        LatLng(-16.3524187, -71.5675994) // Zamacola
+    )
+// Escalar el icono a un tamaño más pequeño
+    val originalBitmap = ResourcesCompat.getDrawable(context.resources, R.drawable.captura_de_pantalla_2024_11_11_202125, null)?.toBitmap()
+    val scaledBitmap = originalBitmap?.let { Bitmap.createScaledBitmap(it, 200, 200, false) } // Ajusta el tamaño deseado
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Añadir GoogleMap al layout
@@ -72,16 +85,21 @@ fun MapScreen() {
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState
         ) {
-            // Añadir marcador en Denver, Colorado
-// Añadir marcador en Arequipa Perú
+            // Añadir marcador principal en Arequipa, Perú con el icono escalado
             Marker(
                 state = rememberMarkerState(position = ArequipaLocation),
-                icon = BitmapDescriptorFactory.fromResource(R.drawable.captura_de_pantalla_2024_11_11_202125), // Icono azul
+                icon = scaledBitmap?.let { BitmapDescriptorFactory.fromBitmap(it) },
                 title = "Arequipa, Perú"
             )
 
-
-
+            // Añadir marcadores para cada ubicación en la lista
+            locations.forEach { location ->
+                Marker(
+                    state = rememberMarkerState(position = location),
+                    title = "Ubicación",
+                    snippet = "Punto de interés"
+                )
+            }
         }
     }
 }
