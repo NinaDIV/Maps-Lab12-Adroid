@@ -56,102 +56,237 @@ import android.Manifest
 import android.content.ContextWrapper
 import android.location.Location
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.shadow
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.graphics.drawable.toBitmap
 import com.example.maps.R
 import com.google.maps.android.compose.Polyline
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapScreen() {
+    var mapType by remember { mutableStateOf(MapType.NORMAL) }
+    var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val ArequipaLocation = LatLng(-16.4040102, -71.559611) // Arequipa, Perú
-    val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(ArequipaLocation, 12f)
+    var userLocation by remember { mutableStateOf<LatLng?>(null) }
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        )
     }
 
-    // Lista de ubicaciones adicionales
-    val locations = listOf(
-        LatLng(-16.433415, -71.5442652), // JLByR
-        LatLng(-16.4205151, -71.4945209), // Paucarpata
-        LatLng(-16.3524187, -71.5675994) // Zamacola
+    //Convertir el recurso drawable a BitmapDescriptor
+    val customMarker = bitmapDescriptorFromVector(
+        context = context,
+        vectorResId = R.drawable.captura_de_pantalla_2024_11_11_202125// Asegúrate que este es el nombre correcto de tu imagen
     )
 
-    // Escalar el icono a un tamaño más pequeño
-    val originalBitmap = ResourcesCompat.getDrawable(context.resources, R.drawable.captura_de_pantalla_2024_11_11_202125, null)?.toBitmap()
-    val scaledBitmap = originalBitmap?.let { Bitmap.createScaledBitmap(it, 50, 50, false) } // Ajusta el tamaño deseado
 
-    // Coordenadas para polígonos
-    val mallAventuraPolygon = listOf(
-        LatLng(-16.432292, -71.509145),
-        LatLng(-16.432757, -71.509626),
-        LatLng(-16.433013, -71.509310),
-        LatLng(-16.432566, -71.508853)
-    )
 
-    val parqueLambramaniPolygon = listOf(
-        LatLng(-16.422704, -71.530830),
-        LatLng(-16.422920, -71.531340),
-        LatLng(-16.423264, -71.531110),
-        LatLng(-16.423050, -71.530600)
-    )
-
-    val plazaDeArmasPolygon = listOf(
-        LatLng(-16.398866, -71.536961),
-        LatLng(-16.398744, -71.536529),
-        LatLng(-16.399178, -71.536289),
-        LatLng(-16.399299, -71.536721)
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        // Añadir GoogleMap al layout
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
+    // Verificar permisos iniciales
+    LaunchedEffect(Unit) {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
         ) {
-            // Añadir marcador principal en Arequipa, Perú con el icono escalado
-            Marker(
-                state = rememberMarkerState(position = ArequipaLocation),
-                icon = scaledBitmap?.let { BitmapDescriptorFactory.fromBitmap(it) },
-                title = "Arequipa, Perú"
+            val activity = context.findActivity()
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                1
             )
-
-            // Añadir marcadores para cada ubicación en la lista
-            locations.forEach { location ->
-                Marker(
-                    state = rememberMarkerState(position = location),
-                    title = "Ubicación",
-                    snippet = "Punto de interés"
-                )
+        } else {
+            hasLocationPermission = true
+            getUserLocation(context) { location ->
+                userLocation = location
             }
-
-            // Dibujar polígonos
-            Polygon(
-                points = plazaDeArmasPolygon,
-                strokeColor = Color.Red,
-                fillColor = Color.Blue.copy(alpha = 0.3f),
-                strokeWidth = 5f
-            )
-            Polygon(
-                points = parqueLambramaniPolygon,
-                strokeColor = Color.Green,
-                fillColor = Color.Yellow.copy(alpha = 0.3f),
-                strokeWidth = 5f
-            )
-            Polygon(
-                points = mallAventuraPolygon,
-                strokeColor = Color.Blue,
-                fillColor = Color.Cyan.copy(alpha = 0.3f),
-                strokeWidth = 5f
-            )
         }
     }
 
-    // Mover la cámara a Yura
-    LaunchedEffect(Unit) {
-        cameraPositionState.animate(
-            update = CameraUpdateFactory.newLatLngZoom(LatLng(-16.2520984, -71.6836503), 12f), // Mover a Yura
-            durationMs = 3000
+    // Obtener ubicación cuando se tienen los permisos
+    LaunchedEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            getUserLocation(context) { location ->
+                userLocation = location
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = rememberCameraPositionState {
+                position = CameraPosition.fromLatLngZoom(
+                    userLocation ?: LatLng(-16.4040102, -71.559611),
+                    15f
+                )
+            },
+            properties = MapProperties(
+                mapType = mapType,
+                isMyLocationEnabled = hasLocationPermission
+            )
+        ) {
+            // Mostrar marcador en la ubicación del usuario si está disponible
+            userLocation?.let { location ->
+                Marker(
+                    state = rememberMarkerState(position = location),
+                    icon = customMarker,
+                    title = "Mi ubicación",
+                    snippet = "Estás aquí"
+                )
+            }
+        }
+
+        // Menú desplegable para cambiar el tipo de mapa
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .align(Alignment.TopStart)
+        ) {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded }
+            ) {
+                OutlinedButton(
+                    onClick = { expanded = true },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .background(Color.White.copy(alpha = 0.95f)) // Fondo blanco con opacidad
+                        .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp)), // Sombra sutil y esquinas redondeadas
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color.White, // Color de fondo blanco para un contraste limpio
+                        contentColor = Color(0xFF1565C0) // Azul más oscuro para texto, acorde a Material Design
+                    ),
+                    shape = RoundedCornerShape(16.dp) , // Redondeado en los bordes
+                    border = BorderStroke(1.dp, Color(0xFF1565C0)) // Borde azul oscuro
+                )  {
+                    Text(
+                        text = when (mapType) {
+                            MapType.NORMAL -> "Normal"
+                            MapType.SATELLITE -> "Satélite"
+                            MapType.HYBRID -> "Híbrido"
+                            MapType.TERRAIN -> "Terreno"
+                            else -> "Seleccionar tipo"
+                        },
+                        color = Color(0xFF1976D2)
+                    )
+                }
+
+                // Opciones de tipo de mapa
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Normal") },
+                        onClick = {
+                            mapType = MapType.NORMAL
+                            expanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Satélite") },
+                        onClick = {
+                            mapType = MapType.SATELLITE
+                            expanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Híbrido") },
+                        onClick = {
+                            mapType = MapType.HYBRID
+                            expanded = false
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Terreno") },
+                        onClick = {
+                            mapType = MapType.TERRAIN
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Función para solicitar permisos de ubicación
+private suspend fun requestLocationPermission(context: Context) {
+    val permission = Manifest.permission.ACCESS_FINE_LOCATION
+    if (ContextCompat.checkSelfPermission(context, permission) != PackageManager.PERMISSION_GRANTED) {
+        val activity = context.findActivity()
+        ActivityCompat.requestPermissions(
+            activity,
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            ),
+            1
         )
+    }
+}
+
+// Función para obtener la ubicación actual
+private fun getUserLocation(context: Context, onLocationReceived: (LatLng) -> Unit) {
+    val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+
+    try {
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED) {
+
+            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+                location?.let {
+                    onLocationReceived(LatLng(it.latitude, it.longitude))
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
+// Extensión útil para encontrar la Activity desde un Context
+fun Context.findActivity(): ComponentActivity {
+    var context = this
+    while (context is ContextWrapper) {
+        if (context is ComponentActivity) return context
+        context = context.baseContext
+    }
+    throw IllegalStateException("No se encontró la Activity")
+}
+
+//Función para convertir el vector/imagen a BitmapDescriptor
+fun bitmapDescriptorFromVector(context: Context, vectorResId: Int): BitmapDescriptor? {
+    return try {
+        val vectorDrawable = ContextCompat.getDrawable(context, vectorResId)
+        vectorDrawable?.let {
+            val width = it.intrinsicWidth/4
+            val height = it.intrinsicHeight/4
+
+            // Asegura que el Bitmap usa ARGB_8888 para canal alfa (transparente)
+            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+
+            // Dibuja el vector en el Canvas del Bitmap
+            it.setBounds(0, 0, width, height)
+            it.draw(canvas)
+
+            // Convierte el Bitmap en BitmapDescriptor
+            BitmapDescriptorFactory.fromBitmap(bitmap)
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
     }
 }
 @Composable
